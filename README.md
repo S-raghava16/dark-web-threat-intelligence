@@ -79,31 +79,32 @@ The platform is architected as a modular web application with a Next.js server r
 
 ```mermaid
 flowchart TD
+
     subgraph Client["Frontend Client (Browser)"]
-        UI["React 19 Server & Client Components"]
-        Tailwind["Tailwind CSS (Enterprise Theme)"]
-        Cyto["Cytoscape.js Network Engine"]
+        UI["React Components"]
+        Tailwind["Tailwind CSS"]
+        Cyto["Cytoscape.js Graph Engine"]
     end
 
-    subgraph Server["Application Server (Next.js / Node.js Runtime)"]
-        Routes["App Router Pages (Server Rendered)"]
-        API["REST Route Handlers (/api/*)"]
-        Queries["Database Query Layer (lib/db/queries.ts)"]
-        Engine["Attribution & Scoring Logic"]
+    subgraph Server["Application Server (Next.js / Node.js)"]
+        Routes["Next.js App Router"]
+        API["API Route Handlers"]
+        Queries["Database Query Layer"]
+        Engine["Attribution and Scoring Engine"]
     end
 
-    subgraph DataTier["Data Tier"]
-        Prisma["Prisma ORM Client"]
+    subgraph DataTier["Database Layer"]
+        Prisma["Prisma ORM"]
         Postgres[(PostgreSQL Database)]
     end
 
-    Client -->|HTTP / JSON Requests| Routes
-    Client -->|API Calls (Search, Graph, Export)| API
+    Client -->|HTTP Requests| Routes
+    Client -->|API Requests| API
     Routes --> Queries
     API --> Queries
     Queries --> Engine
     Queries --> Prisma
-    Prisma -->|SQL via Connection Pool| Postgres
+    Prisma -->|SQL Connection| Postgres
 ```
 
 ### Data Flow
