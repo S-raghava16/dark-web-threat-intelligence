@@ -1,0 +1,460 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ActorStatus {
+  active
+  monitored
+  dormant
+}
+
+enum ConfidenceLevel {
+  low
+  medium
+  high
+}
+
+enum IndicatorType {
+  actor
+  handle
+  pgp_key
+  wallet
+  onion_service
+  domain
+}
+
+enum InfrastructureType {
+  onion_service
+  domain
+  wallet
+  pgp_key
+  hosting_cluster
+}
+
+enum EvidenceType {
+  post
+  listing
+  pgp_signature
+  wallet_reuse
+  infrastructure_overlap
+  linguistic_marker
+}
+
+enum TimelineEventType {
+  listing
+  forum_post
+  pgp_rotation
+  wallet_activity
+  infrastructure_change
+  alert
+}
+
+enum SeverityLevel {
+  info
+  low
+  medium
+  high
+  critical
+}
+
+enum AlertStatus {
+  open
+  acknowledged
+  investigating
+  closed
+}
+
+enum InvestigationStatus {
+  open
+  active
+  review
+  closed
+}
+
+enum WalletAsset {
+  BTC
+  XMR
+  ETH
+}
+
+enum RelationshipType {
+  related_persona
+  shared_wallet
+  shared_pgp
+  shared_handle
+  shared_infrastructure
+  shared_marketplace
+  shared_forum
+  linguistic_similarity
+  behavioral_similarity
+}
+
+model Actor {
+  id                    String       @id
+  name                  String
+  aliases               ActorAlias[]
+  status                ActorStatus
+  attributionConfidence Int
+  firstSeen             DateTime
+  lastSeen              DateTime
+  summary               String
+  provenance            String       @default("synthetic_demo")
+
+  category            String?           @default("Marketplace Vendor")
+  riskLevel           SeverityLevel?    @default(high)
+  lastScanDate        DateTime?         @default(now())
+  observedActivities  String[]          @default(["Data Trading", "Credential Selling", "Forum Activity"])
+  sourceTelemetry     Json?
+
+  handles              ActorHandle[]
+  pgpKeys              PgpKey[]
+  wallets              ActorWallet[]
+  marketplacePresences MarketplacePresence[]
+  forumPresences       ForumPresence[]
+  emails               ActorEmail[]
+
+  investigations InvestigationActor[]
+  evidence       EvidenceActor[]
+  infrastructure ActorInfrastructure[]
+
+  relationshipsFrom ActorRelationship[] @relation("relationshipsFrom")
+  relationshipsTo   ActorRelationship[] @relation("relationshipsTo")
+
+  relatedPersonas RelatedPersona[]
+
+  alerts         Alert[]
+  timelineEvents TimelineEvent[]
+}
+
+model ActorEmail {
+  id        String   @id @default(cuid())
+  address   String
+  provider  String?
+  context   String?
+  firstSeen DateTime @default(now())
+  lastSeen  DateTime @default(now())
+  actorId   String
+  actor     Actor    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([address])
+}
+
+model ActorAlias {
+  id      String @id @default(cuid())
+  value   String
+  actorId String
+  actor   Actor  @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+}
+
+model ActorHandle {
+  id        String   @id
+  value     String
+  platform  String
+  firstSeen DateTime
+  lastSeen  DateTime
+  actorId   String
+  actor     Actor    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([value])
+}
+
+model PgpKey {
+  id               String   @id
+  fingerprint      String
+  associatedHandle String?
+  firstSeen        DateTime
+  lastSeen         DateTime
+  actorId          String
+  actor            Actor    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  infrastructure InfrastructureIndicator[]
+
+  @@index([actorId])
+  @@index([fingerprint])
+}
+
+model Wallet {
+  id        String      @id
+  address   String      @unique
+  asset     WalletAsset
+  firstSeen DateTime
+  lastSeen  DateTime
+
+  actors         ActorWallet[]
+  infrastructure InfrastructureIndicator[]
+
+  @@index([address])
+}
+
+model ActorWallet {
+  actorId  String
+  walletId String
+
+  actor  Actor  @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@id([actorId, walletId])
+  @@index([walletId])
+}
+
+model Marketplace {
+  id        String                @id @default(cuid())
+  name      String                @unique
+  presences MarketplacePresence[]
+}
+
+model MarketplacePresence {
+  id            String   @id
+  role          String
+  lastSeen      DateTime
+  actorId       String
+  marketplaceId String
+
+  actor       Actor       @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  marketplace Marketplace @relation(fields: [marketplaceId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([marketplaceId])
+}
+
+model Forum {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  presences ForumPresence[]
+}
+
+model ForumPresence {
+  id       String   @id
+  lastSeen DateTime
+  actorId  String
+  forumId  String
+
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  forum Forum @relation(fields: [forumId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([forumId])
+}
+
+model RelatedPersona {
+  id         String @id
+  actorId    String
+  label      String
+  hypothesis String
+  confidence Int
+
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+}
+
+model Investigation {
+  id         String              @id
+  title      String
+  status     InvestigationStatus
+  openedAt   DateTime
+  updatedAt  DateTime
+  summary    String
+  hypothesis String
+
+  actors         InvestigationActor[]
+  evidence       Evidence[]
+  infrastructure InvestigationInfrastructure[]
+  alerts         Alert[]
+  timelineEvents TimelineEvent[]
+}
+
+model InvestigationActor {
+  investigationId String
+  actorId         String
+
+  investigation Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  actor         Actor         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@id([investigationId, actorId])
+  @@index([actorId])
+}
+
+model InfrastructureIndicator {
+  id         String             @id
+  type       InfrastructureType
+  value      String
+  firstSeen  DateTime
+  lastSeen   DateTime
+  confidence Int
+  source     String
+  note       String?
+  provenance String             @default("synthetic_demo")
+
+  reliability           String?            @default("High")
+  contributionWeight    Int?               @default(30)
+  usedFor               String?            @default("Relationship attribution")
+  serverTechnology      String?
+  certificateFingerprint String?
+  hostingPattern        String?
+
+  actors         ActorInfrastructure[]
+  investigations InvestigationInfrastructure[]
+
+  walletId String?
+  wallet   Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  pgpKeyId String?
+  pgpKey   PgpKey? @relation(fields: [pgpKeyId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([value])
+}
+
+model ActorInfrastructure {
+  actorId          String
+  infrastructureId String
+
+  actor          Actor                   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  infrastructure InfrastructureIndicator @relation(fields: [infrastructureId], references: [id], onDelete: Cascade)
+
+  @@id([actorId, infrastructureId])
+  @@index([infrastructureId])
+}
+
+model InvestigationInfrastructure {
+  investigationId  String
+  infrastructureId String
+
+  investigation  Investigation           @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  infrastructure InfrastructureIndicator @relation(fields: [infrastructureId], references: [id], onDelete: Cascade)
+
+  @@id([investigationId, infrastructureId])
+  @@index([infrastructureId])
+}
+
+model Evidence {
+  id         String       @id
+  type       EvidenceType
+  source     String
+  timestamp  DateTime
+  confidence Int
+  summary    String
+  provenance String       @default("synthetic_demo")
+
+  investigationId String
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+
+  actors EvidenceActor[]
+
+  @@index([investigationId])
+  @@index([type])
+}
+
+model EvidenceActor {
+  evidenceId String
+  actorId    String
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  actor    Actor    @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@id([evidenceId, actorId])
+  @@index([actorId])
+}
+
+model Alert {
+  id         String        @id
+  title      String
+  severity   SeverityLevel
+  confidence Int
+  timestamp  DateTime
+  status     AlertStatus
+  summary    String
+
+  investigationId String?
+  investigation   Investigation? @relation(fields: [investigationId], references: [id], onDelete: SetNull)
+
+  actorId String?
+  actor   Actor?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([status])
+}
+
+model TimelineEvent {
+  id         String            @id
+  timestamp  DateTime
+  type       TimelineEventType
+  title      String
+  detail     String
+  confidence Int
+
+  actorId String?
+  actor   Actor?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  investigationId String?
+  investigation   Investigation? @relation(fields: [investigationId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([actorId])
+  @@index([investigationId])
+}
+
+model ActorRelationship {
+  id String @id @default(cuid())
+
+  fromActorId String
+  toActorId   String
+
+  type RelationshipType
+
+  confidence Int
+
+  hypothesis String
+
+  evidence Json?
+
+  provenance String @default("generated_intelligence_engine")
+
+  fromActor Actor @relation("relationshipsFrom", fields: [fromActorId], references: [id], onDelete: Cascade)
+
+  toActor Actor @relation("relationshipsTo", fields: [toActorId], references: [id], onDelete: Cascade)
+
+  evidenceContributions EvidenceContribution[]
+
+  @@index([fromActorId])
+  @@index([toActorId])
+  @@index([type])
+}
+
+enum EvidenceContributionType {
+  PGP_KEY
+  WALLET
+  ALIAS
+  INFRASTRUCTURE
+  MESSAGE_PATTERN
+}
+
+enum ReliabilityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+model EvidenceContribution {
+  id             String                   @id @default(cuid())
+  relationshipId String
+  relationship   ActorRelationship        @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  evidenceType   EvidenceContributionType
+  description    String
+  weight         Int
+  reliability    ReliabilityLevel
+  createdAt      DateTime                 @default(now())
+
+  @@index([relationshipId])
+  @@index([evidenceType])
+}
